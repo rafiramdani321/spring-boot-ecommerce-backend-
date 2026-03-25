@@ -89,8 +89,8 @@ Request Body :
 
 ```json
 {
-  "username": "string (unique, required)",
-  "fullname": "string (optional)",
+  "username": "string (unique, required, min = 3, max = 50)",
+  "fullname": "string (optional, max = 100)",
   "email": "string (unique, required)",
   "password": "string (required, min 8, at least 1 uppercase, at least 1 special character",
   "confirmPassword": "string (must be same with password)"
@@ -120,8 +120,9 @@ Response Body :
   "code": "VALIDATION_FAILED",
   "errors": {
     "username": ["Username is required", "...."],
+    "fullname": ["Fullname must not exceed 100 characters"],
     "email": ["Email is invalid"],
-    "password": ["Password must be at least 8 characters", "...."]
+    "password": ["Password must be between 8 and 100 characters", "...."]
   }
 }
 ```

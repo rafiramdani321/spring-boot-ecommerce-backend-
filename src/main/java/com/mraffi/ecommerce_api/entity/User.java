@@ -19,15 +19,16 @@ public class User {
    @Setter(AccessLevel.NONE)
    private String id;
 
-   @Column(nullable = false, unique = true)
+   @Column(nullable = false, unique = true, length = 50)
    private String username;
 
+   @Column(length = 100)
    private String fullname;
 
-   @Column(nullable = false, unique = true)
+   @Column(nullable = false, unique = true, length = 100)
    private String email;
 
-   @Column(nullable = false) // update true if OAUTH2 (soon)
+   @Column(nullable = false)
    private String password;
 
    @Column(name = "image_url")
