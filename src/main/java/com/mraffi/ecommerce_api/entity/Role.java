@@ -10,16 +10,13 @@ import java.util.UUID;
 @Entity
 @Table(name = "roles")
 @Getter
-@Setter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Role {
 
    @Id
    private String id;
 
-   @Column(nullable = false, unique = true)
+   @Column(nullable = false, unique = true, length = 100)
    private String name;
 
    private Instant createdAt;
@@ -43,4 +40,10 @@ public class Role {
       this.updatedAt = Instant.now();
    }
 
+   public static Role create(String name){
+      Role role = new Role();
+      role.name = name;
+
+      return role;
+   }
 }

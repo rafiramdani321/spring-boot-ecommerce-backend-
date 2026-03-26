@@ -1,22 +1,24 @@
 package com.mraffi.ecommerce_api.entity;
 
+import com.mraffi.ecommerce_api.contant.AuthProvider;
+import com.mraffi.ecommerce_api.contant.Gender;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "users")
 @Getter
-@Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class User {
 
+   private static final String DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=";
+
    @Id
-   @Setter(AccessLevel.NONE)
    private String id;
 
    @Column(nullable = false, unique = true, length = 50)
@@ -47,15 +49,16 @@ public class User {
    @Column(name = "date_of_birth")
    private LocalDate dateOfBirth;
 
-   @Setter(AccessLevel.NONE)
    private Instant createdAt;
 
-   @Setter(AccessLevel.NONE)
    private Instant updatedAt;
 
-   @ManyToOne
+   @ManyToOne(fetch = FetchType.LAZY)
    @JoinColumn(name = "role_id", referencedColumnName = "id", nullable = false)
    private Role role;
+
+   @OneToMany(mappedBy = "user")
+   private List<Token> tokens;
 
    @PrePersist
    protected void prePersist(){
@@ -72,4 +75,21 @@ public class User {
       this.updatedAt = Instant.now();
    }
 
+   public void verify(){
+      this.isVerified = true;
+   }
+
+   public static User createLocalUser(String username, String fullname, String email, String hashedPassword, Role role){
+      User user = new User();
+      user.username = username;
+      user.fullname = fullname;
+      user.email = email;
+      user.password = hashedPassword;
+      user.isVerified = false;
+      user.authProvider = AuthProvider.LOCAL;
+      user.role = role;
+      user.imageUrl = DEFAULT_AVATAR + username;
+
+      return user;
+   }
 }

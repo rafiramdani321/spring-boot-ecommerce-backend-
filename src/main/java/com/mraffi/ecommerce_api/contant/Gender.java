@@ -1,4 +1,4 @@
-package com.mraffi.ecommerce_api.entity;
+package com.mraffi.ecommerce_api.contant;
 
 public enum Gender {
    MALE,
