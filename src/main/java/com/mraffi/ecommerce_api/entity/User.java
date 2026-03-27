@@ -57,7 +57,7 @@ public class User {
    @JoinColumn(name = "role_id", referencedColumnName = "id", nullable = false)
    private Role role;
 
-   @OneToMany(mappedBy = "user")
+   @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
    private List<Token> tokens;
 
    @PrePersist
