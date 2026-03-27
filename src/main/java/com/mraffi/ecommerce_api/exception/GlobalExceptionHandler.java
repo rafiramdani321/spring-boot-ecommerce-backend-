@@ -2,11 +2,15 @@ package com.mraffi.ecommerce_api.exception;
 
 import com.mraffi.ecommerce_api.dto.WebResponse;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,26 @@ public class GlobalExceptionHandler {
               .build();
 
       return ResponseEntity.badRequest().body(response);
+   }
+
+   @ExceptionHandler(NoResourceFoundException.class)
+   public ResponseEntity<WebResponse<Object>> handleRouteNotFound(NoResourceFoundException ex) {
+      WebResponse<Object> response = WebResponse.<Object>builder()
+              .message("Route not found")
+              .code("ROUTE_NOT_FOUND")
+              .build();
+
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+   }
+
+   @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+   public ResponseEntity<WebResponse<Object>> handleRequestMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+      WebResponse<Object> response = WebResponse.<Object>builder()
+              .message("Method Not Allowed")
+              .code("METHOD_NOT_ALLOWED")
+              .build();
+
+      return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
    }
 
    @ExceptionHandler(Exception.class)
