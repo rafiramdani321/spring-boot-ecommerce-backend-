@@ -1,6 +1,6 @@
 package com.mraffi.ecommerce_api.seeder;
 
-import com.mraffi.ecommerce_api.contant.RoleName;
+import com.mraffi.ecommerce_api.constant.RoleName;
 import com.mraffi.ecommerce_api.entity.Role;
 import com.mraffi.ecommerce_api.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;

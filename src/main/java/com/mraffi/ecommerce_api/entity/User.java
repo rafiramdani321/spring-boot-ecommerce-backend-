@@ -1,7 +1,7 @@
 package com.mraffi.ecommerce_api.entity;
 
-import com.mraffi.ecommerce_api.contant.AuthProvider;
-import com.mraffi.ecommerce_api.contant.Gender;
+import com.mraffi.ecommerce_api.constant.AuthProvider;
+import com.mraffi.ecommerce_api.constant.Gender;
 import jakarta.persistence.*;
 import lombok.*;
 

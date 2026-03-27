@@ -1,8 +1,8 @@
 package com.mraffi.ecommerce_api.service;
 
-import com.mraffi.ecommerce_api.contant.RoleName;
-import com.mraffi.ecommerce_api.contant.TokenStatus;
-import com.mraffi.ecommerce_api.contant.TokenType;
+import com.mraffi.ecommerce_api.constant.RoleName;
+import com.mraffi.ecommerce_api.constant.TokenStatus;
+import com.mraffi.ecommerce_api.constant.TokenType;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
 import com.mraffi.ecommerce_api.entity.Role;

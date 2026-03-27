@@ -1,7 +1,7 @@
 package com.mraffi.ecommerce_api.entity;
 
-import com.mraffi.ecommerce_api.contant.TokenStatus;
-import com.mraffi.ecommerce_api.contant.TokenType;
+import com.mraffi.ecommerce_api.constant.TokenStatus;
+import com.mraffi.ecommerce_api.constant.TokenType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

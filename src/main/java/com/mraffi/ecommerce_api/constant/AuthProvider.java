@@ -1,4 +1,4 @@
-package com.mraffi.ecommerce_api.contant;
+package com.mraffi.ecommerce_api.constant;
 
 public enum AuthProvider {
    LOCAL,
