@@ -116,21 +116,21 @@ public class AuthServiceImpl implements AuthService {
                       Map.of("token", List.of("Invalid token"))
               ));
 
-      if(token.getTokenStatus() != TokenStatus.ACTIVE){
-         throw new ApiException(
-                 "TOKEN_ALREADY_USED",
-                 HttpStatus.BAD_REQUEST,
-                 Map.of("token", List.of("Token already used or invalid"))
-         );
-      }
+         if(token.getTokenStatus() != TokenStatus.ACTIVE){
+            throw new ApiException(
+                    "TOKEN_ALREADY_USED",
+                    HttpStatus.BAD_REQUEST,
+                    Map.of("token", List.of("Token already used or invalid"))
+            );
+         }
 
-      if(token.getExpiredAt().isBefore(Instant.now())){
-         throw new ApiException(
-                 "TOKEN_EXPIRED",
-                 HttpStatus.BAD_REQUEST,
-                 Map.of("token", List.of("Token has expired"))
-         );
-      }
+         if(token.getExpiredAt().isBefore(Instant.now())){
+            throw new ApiException(
+                    "TOKEN_EXPIRED",
+                    HttpStatus.BAD_REQUEST,
+                    Map.of("token", List.of("Token has expired"))
+            );
+         }
 
       Claims claims;
       try {
@@ -168,7 +168,7 @@ public class AuthServiceImpl implements AuthService {
               .orElseThrow(() -> new ApiException(
                       "USER_NOT_FOUND",
                       HttpStatus.NOT_FOUND,
-                      Map.of("global", List.of("user not found"))
+                      Map.of("global", List.of("User not found"))
               ));
 
       user.verify();
