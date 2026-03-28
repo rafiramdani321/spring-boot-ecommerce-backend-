@@ -3,14 +3,19 @@ package com.mraffi.ecommerce_api.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mraffi.ecommerce_api.constant.RoleName;
+import com.mraffi.ecommerce_api.constant.TokenStatus;
+import com.mraffi.ecommerce_api.constant.TokenType;
 import com.mraffi.ecommerce_api.dto.WebResponse;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
 import com.mraffi.ecommerce_api.entity.Role;
+import com.mraffi.ecommerce_api.entity.Token;
+import com.mraffi.ecommerce_api.entity.User;
 import com.mraffi.ecommerce_api.repository.RoleRepository;
 import com.mraffi.ecommerce_api.repository.TokenRepository;
 import com.mraffi.ecommerce_api.repository.UserRepository;
 import com.mraffi.ecommerce_api.service.EmailService;
+import com.mraffi.ecommerce_api.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +25,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.util.ReflectionTestUtils.setField;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -49,26 +56,52 @@ class AuthControllerTestIT {
    @Autowired
    private TokenRepository tokenRepository;
 
+   @Autowired
+   private JwtService jwtService;
+
    @MockBean
    private EmailService emailService;
+
+   private User user;
+   private Token token;
 
    String url = "/api/auth";
 
    @BeforeEach
    void setUp(){
-      tokenRepository.deleteAll();
-      userRepository.deleteAll();
+      tokenRepository.deleteAllInBatch();
+      userRepository.deleteAllInBatch();
 
-      if(roleRepository.findByName(RoleName.CUSTOMER.name()).isEmpty()){
-         Role role = Role.create(RoleName.CUSTOMER.name());
-         roleRepository.save(role);
-      }
+      Role role = roleRepository.findByName(RoleName.CUSTOMER.name())
+              .orElseGet(() -> {
+                 Role newRole = Role.create(RoleName.CUSTOMER.name());
+                 return roleRepository.save(newRole);
+              });
+
+      user = User.createLocalUser(
+              "test_user_existing",
+              "Test User",
+              "existing@example.com",
+              "hashedPassword",
+              role
+      );
+      userRepository.save(user);
+
+      String realJwtToken = jwtService.generateEmailVerificationToken(user.getId());
+
+      token = Token.create(
+              realJwtToken,
+              user,
+              TokenType.EMAIL_ACTIVATION,
+              Instant.now().plusMillis(900000L)
+      );
+      tokenRepository.save(token);
    }
 
    @Test
    void register_success() throws Exception {
       RegisterRequest request = RegisterRequest.builder()
-              .username("testuser")
+              .username("test_user")
               .fullname("Test User")
               .email("test@example.com")
               .password("123@Password456")
@@ -105,7 +138,7 @@ class AuthControllerTestIT {
    void register_validationFailed() throws Exception {
       RegisterRequest request = RegisterRequest.builder()
               .fullname("A".repeat(101))
-              .email("emailerror".repeat(101))
+              .email("invalid-email".repeat(101))
               .password("wrong")
               .build();
 
@@ -154,11 +187,8 @@ class AuthControllerTestIT {
 
    @Test
    void register_usernameAlreadyExists() throws Exception {
-
-      register_success();
-
       RegisterRequest request = RegisterRequest.builder()
-              .username("testuser")
+              .username(user.getUsername())
               .fullname("Test User")
               .email("different@example.com")
               .password("123@Password456")
@@ -190,13 +220,10 @@ class AuthControllerTestIT {
 
    @Test
    void register_emailAlreadyExists() throws Exception {
-
-      register_success();
-
       RegisterRequest request = RegisterRequest.builder()
-              .username("differentuser")
+              .username("different_user")
               .fullname("Test User")
-              .email("test@example.com")
+              .email(user.getEmail())
               .password("123@Password456")
               .confirmPassword("123@Password456")
               .build();
@@ -226,11 +253,10 @@ class AuthControllerTestIT {
 
    @Test
    void register_passwordMismatch() throws Exception {
-
       RegisterRequest request = RegisterRequest.builder()
-              .username("testuser")
+              .username("different_username")
               .fullname("Test User")
-              .email("example@example.com")
+              .email("different@example.com")
               .password("123@Password456")
               .confirmPassword("wrong")
               .build();
@@ -258,4 +284,159 @@ class AuthControllerTestIT {
               });
    }
 
+   @Test
+   void verifyEmail_success() throws Exception {
+      mockMvc.perform(
+              get(url + "/verify-email")
+                      .queryParam("token", token.getToken())
+                      .accept(MediaType.APPLICATION_JSON)
+                      .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isOk())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNull(response.getErrors());
+                 assertEquals("Email verification successful", response.getMessage());
+                 assertEquals("success", response.getData());
+
+                 User updatedUser = userRepository.findById(user.getId()).orElseThrow();
+                 Token updatedToken = tokenRepository.findByToken(token.getToken()).orElseThrow();
+
+                 assertTrue(updatedUser.getIsVerified());
+                 assertEquals(TokenStatus.USED, updatedToken.getTokenStatus());
+              });
+   }
+
+   @Test
+   void verifyEmail_failed_tokenNotFound() throws Exception {
+      mockMvc.perform(
+                      get(url + "/verify-email")
+                              .queryParam("token", "token-not-found")
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isNotFound())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("Request failed", response.getMessage());
+                 assertEquals("TOKEN_NOT_FOUND", response.getCode());
+
+                 assertTrue(response.getErrors().containsKey("token"));
+                 assertTrue(response.getErrors().get("token").contains("Invalid token"));
+              });
+   }
+
+   @Test
+   void verifyEmail_failed_tokenAlreadyUsed() throws Exception {
+      token.setTokenStatus(TokenStatus.USED);
+      tokenRepository.saveAndFlush(token);
+
+      mockMvc.perform(
+                      get(url + "/verify-email")
+                              .queryParam("token", token.getToken())
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isBadRequest())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("Request failed", response.getMessage());
+                 assertEquals("TOKEN_ALREADY_USED", response.getCode());
+
+                 assertTrue(response.getErrors().containsKey("token"));
+                 assertTrue(response.getErrors().get("token").contains("Token already used or invalid"));
+              });
+   }
+
+   @Test
+   void verifyEmail_failed_expiredDb() throws Exception {
+      setField(token, "expiredAt", Instant.now().minusSeconds(10));
+      tokenRepository.saveAndFlush(token);
+
+      mockMvc.perform(
+                      get(url + "/verify-email")
+                              .queryParam("token", token.getToken())
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isBadRequest())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("Request failed", response.getMessage());
+                 assertEquals("TOKEN_EXPIRED", response.getCode());
+
+                 assertTrue(response.getErrors().containsKey("token"));
+                 assertTrue(response.getErrors().get("token").contains("Token has expired"));
+              });
+   }
+
+   @Test
+   void verifyEmail_failed_jwtMalformed() throws Exception {
+      String malformedToken = token.getToken().replace(".", "");
+
+      setField(token, "token", malformedToken);
+      tokenRepository.saveAndFlush(token);
+
+      mockMvc.perform(
+                      get(url + "/verify-email")
+                              .queryParam("token", malformedToken)
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isBadRequest())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("INVALID_TOKEN", response.getCode());
+                 assertTrue(response.getErrors().get("token").contains("Invalid token format"));
+              });
+   }
+
+   @Test
+   void verifyEmail_failed_jwtInvalidSignature() throws Exception {
+      String invalidSigToken = token.getToken().substring(0, token.getToken().length() - 1) + "Z";
+      setField(token, "token", invalidSigToken);
+      tokenRepository.saveAndFlush(token);
+
+      mockMvc.perform(
+                      get(url + "/verify-email")
+                              .queryParam("token", invalidSigToken)
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON))
+              .andExpect(status().isBadRequest())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("INVALID_SIGNATURE", response.getCode());
+                 assertTrue(response.getErrors().get("token").contains("Invalid token signature"));
+              });
+   }
 }
