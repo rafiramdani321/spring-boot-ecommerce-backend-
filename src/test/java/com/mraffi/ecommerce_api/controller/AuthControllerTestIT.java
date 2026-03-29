@@ -122,7 +122,7 @@ class AuthControllerTestIT {
                  );
 
                  assertNull(response.getErrors());
-                 assertEquals("Registration Success. Please check your email for activation", response.getMessage());
+                 assertEquals("Registration Success. Please check your email for activation.", response.getMessage());
 
                  assertEquals(request.getUsername(), response.getData().getUsername());
                  assertEquals(request.getFullname(), response.getData().getFullname());
@@ -358,7 +358,7 @@ class AuthControllerTestIT {
                  assertEquals("TOKEN_ALREADY_USED", response.getCode());
 
                  assertTrue(response.getErrors().containsKey("token"));
-                 assertTrue(response.getErrors().get("token").contains("Token already used or invalid"));
+                 assertTrue(response.getErrors().get("token").contains("This link has already been used. Please login."));
               });
    }
 
@@ -385,7 +385,12 @@ class AuthControllerTestIT {
                  assertEquals("TOKEN_EXPIRED", response.getCode());
 
                  assertTrue(response.getErrors().containsKey("token"));
-                 assertTrue(response.getErrors().get("token").contains("Token has expired"));
+                 assertTrue(response.getErrors().get("token").contains("This link has expired. Please request a new verification link."));
+                 assertTrue(response.getErrors().containsKey("email"));
+                 assertTrue(response.getErrors().get("email").contains(user.getEmail()));
+
+                 Token tokenDb = tokenRepository.findByToken(token.getToken()).orElseThrow();
+                 assertEquals(TokenStatus.EXPIRED ,tokenDb.getTokenStatus());
               });
    }
 

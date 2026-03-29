@@ -2,77 +2,12 @@
 
 Notes:
 - Email verification required before login
-- Username and email must be unique
-
-## Register
-
-Endpoint : POST /api/auth/register
-
-Request Body :
-
-```json
-{
-  "username": "string (unique, required)",
-  "fullname": "string (optional)",
-  "email": "string (unique, required)",
-  "password": "string (required, min 8, at least 1 uppercase, at least 1 special character)",
-  "confirmPassword": "string (must be same with password)"
-}
-```
-
-Response Body :
-
-- Success, 201 - Created
-```json
-{
-  "data": {
-    "id": "uuid",
-    "username": "testusername",
-    "fullname": "test fullname",
-    "email": "test@example.com",
-    "isVerified": false
-  },
-  "message": "Registration Success. Please check your email for activation."
-}
-```
-
-- Validation Failed, 400 Bad Request 
-```json
-{
-  "message": "Request failed",
-  "code": "VALIDATION_FAILED",
-  "errors": {
-    "username": ["Username is required", "...."],
-    "email": ["Email is invalid"],
-    "password": ["Password must be at least 8 characters", "...."]
-  }
-}
-```
-
-- Business Error, 409 Conflict
-```json
-{
-  "message": "Request failed",
-  "code": "USERNAME_ALREADY_EXISTS",
-  "errors": {
-    "username": ["Username already exists"]
-  }
-}
-```
-
-### Behavior
-
-- Password will be hashed using bcrypt
-# AUTH API SPEC
-
-Notes:
-- Email verification required before login
-- Username and email must be unique
 
 ## Register
 
 ### Behavior
 
+- Username and email must be unique
 - System will validate all request fields
 - confirmPassword must match password
 - System will check for existing username and email before creating user
@@ -137,3 +72,56 @@ Response Body :
   }
 }
 ```
+
+## Verify Email Activation
+
+### Behavior
+
+- Query param : token (mandatory)
+- System will check token
+- token expired (15 minute)
+- if checking success, isVerified will be set to true
+
+Endpoint : GET /api/auth/verify-email?token=
+
+Request Body :
+
+Response Body :
+
+- Success, 200 - OK
+```json
+{
+  "data": "success",
+  "message": "Email verification successful"
+}
+```
+
+- Failed (Token not found), 404 Not Found
+```json
+{
+  "message": "Request failed",
+  "code": "TOKEN_NOT_FOUND",
+  "errors": {
+    "token": [
+      "Invalid token"
+    ]
+  }
+}
+```
+
+- Failed (Token Expired), 400 Bad Request
+```json
+{
+  "message": "Request failed",
+  "code": "TOKEN_EXPIRED",
+  "errors": {
+    "email": [
+      "testuser@example.com"
+    ],
+    "token": [
+      "This link has expired. Please request a new verification link."
+    ]
+  }
+}
+```
+

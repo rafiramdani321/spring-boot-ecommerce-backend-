@@ -27,7 +27,7 @@ public class AuthController {
       RegisterResponse registerResponse = authService.register(request);
       return WebResponse.<RegisterResponse>builder()
               .data(registerResponse)
-              .message("Registration Success. Please check your email for activation")
+              .message("Registration Success. Please check your email for activation.")
               .build();
    }
 

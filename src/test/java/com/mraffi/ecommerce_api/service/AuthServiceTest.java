@@ -50,6 +50,9 @@ class AuthServiceTest {
    private EmailService emailService;
 
    @Mock
+   private TokenService tokenService;
+
+   @Mock
    private PasswordEncoder passwordEncoder;
 
    @Mock
@@ -198,7 +201,7 @@ class AuthServiceTest {
       assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
 
       assertTrue(ex.getErrors().containsKey("global"));
-      assertTrue(ex.getErrors().get("global").contains("Registration Failed. Default role not found"));
+      assertTrue(ex.getErrors().get("global").contains("Registration Failed. Default role not found."));
 
       verify(userRepository, never()).save(any());
    }
@@ -206,21 +209,16 @@ class AuthServiceTest {
    @Test
    void verifyEmail_success(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
-
-      String mockUserId = user.getId();
-      when(claims.getSubject()).thenReturn(mockUserId);
-      setField(user, "id", mockUserId);
-
       when(jwtService.validateToken(token.getToken())).thenReturn(claims);
-      when(userRepository.findById(mockUserId)).thenReturn(Optional.of(user));
+      when(claims.getSubject()).thenReturn(user.getId());
+      when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
 
       authService.verifyEmail(token.getToken());
 
       assertTrue(user.getIsVerified());
-      assertEquals(TokenStatus.USED, token.getTokenStatus());
-
       verify(userRepository, times(1)).save(user);
-      verify(tokenRepository, times(1)).save(token);
+
+      verify(tokenService, times(1)).updateTokenStatus(token, TokenStatus.USED);
    }
 
    @Test
@@ -254,7 +252,7 @@ class AuthServiceTest {
       assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
 
       assertTrue(ex.getErrors().containsKey("token"));
-      assertTrue(ex.getErrors().get("token").contains("Token already used or invalid"));
+      assertTrue(ex.getErrors().get("token").contains("This link has already been used. Please login."));
 
       verify(userRepository, never()).save(any());
       verify(tokenRepository, never()).save(any());
@@ -273,10 +271,12 @@ class AuthServiceTest {
       assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
 
       assertTrue(ex.getErrors().containsKey("token"));
-      assertTrue(ex.getErrors().get("token").contains("Token has expired"));
+      assertTrue(ex.getErrors().get("token").contains("This link has expired. Please request a new verification link."));
+      assertTrue(ex.getErrors().containsKey("email"));
+      assertTrue(ex.getErrors().get("email").contains("testuser@example.com"));
 
+      verify(tokenService, times(1)).updateTokenStatus(token, TokenStatus.EXPIRED);
       verify(userRepository, never()).save(any());
-      verify(tokenRepository, never()).save(any());
    }
 
    @Test
@@ -294,10 +294,12 @@ class AuthServiceTest {
       assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
 
       assertTrue(ex.getErrors().containsKey("token"));
-      assertTrue(ex.getErrors().get("token").contains("Token has expired"));
+      assertTrue(ex.getErrors().get("token").contains("This link has expired. Please request a new verification link."));
+      assertTrue(ex.getErrors().containsKey("email"));
+      assertTrue(ex.getErrors().get("email").contains("testuser@example.com"));
 
+      verify(tokenService, times(1)).updateTokenStatus(token, TokenStatus.EXPIRED);
       verify(userRepository, never()).save(any());
-      verify(tokenRepository, never()).save(any());
    }
 
    @Test

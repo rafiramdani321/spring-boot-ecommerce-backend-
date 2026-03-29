@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -37,6 +38,7 @@ public class AuthServiceImpl implements AuthService {
    private final RoleRepository roleRepository;
    private final TokenRepository tokenRepository;
 
+   private final TokenService tokenService;
    private final JwtService jwtService;
    private final EmailService emailService;
 
@@ -45,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
    @Value("${jwt.email.verification.token.expiration}")
    private long emailVerificationTokenExpiration;
 
+   @Override
    @Transactional
    public RegisterResponse register(RegisterRequest request){
       if(userRepository.existsByUsername(request.getUsername())){
@@ -73,7 +76,7 @@ public class AuthServiceImpl implements AuthService {
               .orElseThrow(() -> new ApiException(
                       "DEFAULT_ROLE_NOT_FOUND",
                       HttpStatus.BAD_REQUEST,
-                      Map.of("global", List.of("Registration Failed. Default role not found"))
+                      Map.of("global", List.of("Registration Failed. Default role not found."))
               ));
 
       String hashedPassword = passwordEncoder.encode(request.getPassword());
@@ -107,6 +110,7 @@ public class AuthServiceImpl implements AuthService {
               .build();
    }
 
+   @Override
    @Transactional
    public void verifyEmail(String tokenValue){
       Token token = tokenRepository.findByToken(tokenValue)
@@ -116,30 +120,48 @@ public class AuthServiceImpl implements AuthService {
                       Map.of("token", List.of("Invalid token"))
               ));
 
-         if(token.getTokenStatus() != TokenStatus.ACTIVE){
-            throw new ApiException(
-                    "TOKEN_ALREADY_USED",
-                    HttpStatus.BAD_REQUEST,
-                    Map.of("token", List.of("Token already used or invalid"))
-            );
-         }
+      String userEmail = token.getUser().getEmail();
+      String expiredMsg = "This link has expired. Please request a new verification link.";
+      Map<String, List<String>> expiredData = Map.of(
+              "token", List.of(expiredMsg),
+              "email", List.of(userEmail)
+      );
 
-         if(token.getExpiredAt().isBefore(Instant.now())){
-            throw new ApiException(
-                    "TOKEN_EXPIRED",
-                    HttpStatus.BAD_REQUEST,
-                    Map.of("token", List.of("Token has expired"))
-            );
-         }
+      if(token.getTokenStatus() == TokenStatus.USED){
+         throw new ApiException(
+                 "TOKEN_ALREADY_USED",
+                 HttpStatus.BAD_REQUEST,
+                 Map.of("token", List.of("This link has already been used. Please login."))
+         );
+      }
+
+      if(token.getTokenStatus() == TokenStatus.EXPIRED){
+         throw new ApiException(
+                 "TOKEN_EXPIRED",
+                 HttpStatus.BAD_REQUEST,
+                 expiredData
+         );
+      }
+
+
+      if(token.getExpiredAt().isBefore(Instant.now())){
+         tokenService.updateTokenStatus(token, TokenStatus.EXPIRED);
+         throw new ApiException(
+                 "TOKEN_EXPIRED",
+                 HttpStatus.BAD_REQUEST,
+                 expiredData
+         );
+      }
 
       Claims claims;
       try {
          claims = jwtService.validateToken(tokenValue);
       } catch (ExpiredJwtException e){
+         tokenService.updateTokenStatus(token, TokenStatus.EXPIRED);
          throw new ApiException(
                  "TOKEN_EXPIRED",
                  HttpStatus.BAD_REQUEST,
-                 Map.of("token", List.of("Token has expired"))
+                 expiredData
          );
       } catch (UnsupportedJwtException | MalformedJwtException e) {
          throw new ApiException(
@@ -172,10 +194,8 @@ public class AuthServiceImpl implements AuthService {
               ));
 
       user.verify();
-      token.setTokenStatus(TokenStatus.USED);
-
       userRepository.save(user);
-      tokenRepository.save(token);
-   }
 
+      tokenService.updateTokenStatus(token, TokenStatus.USED);
+   }
 }
