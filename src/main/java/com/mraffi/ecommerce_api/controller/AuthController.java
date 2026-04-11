@@ -2,6 +2,7 @@ package com.mraffi.ecommerce_api.controller;
 
 import com.mraffi.ecommerce_api.dto.WebResponse;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
+import com.mraffi.ecommerce_api.dto.request.auth.ResendEmailVerificationRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
 import com.mraffi.ecommerce_api.service.AuthService;
 import jakarta.validation.Valid;
@@ -40,6 +41,20 @@ public class AuthController {
       return WebResponse.<String>builder()
               .data("success")
               .message("Email verification successful")
+              .build();
+   }
+
+   @PostMapping(
+           path = "/resend-email-verification",
+           consumes = MediaType.APPLICATION_JSON_VALUE,
+           produces = MediaType.APPLICATION_JSON_VALUE
+   )
+   @ResponseStatus(HttpStatus.CREATED)
+   public WebResponse<String> resendEmailVerification(@Valid @RequestBody ResendEmailVerificationRequest request){
+      authService.resendEmailVerification(request.getEmail());
+      return WebResponse.<String>builder()
+              .data("success")
+              .message("Resend email verification success")
               .build();
    }
 

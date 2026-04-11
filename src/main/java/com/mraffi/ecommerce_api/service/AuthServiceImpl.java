@@ -5,6 +5,7 @@ import com.mraffi.ecommerce_api.constant.TokenStatus;
 import com.mraffi.ecommerce_api.constant.TokenType;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
+import com.mraffi.ecommerce_api.dto.response.user.UserResponse;
 import com.mraffi.ecommerce_api.entity.Role;
 import com.mraffi.ecommerce_api.entity.Token;
 import com.mraffi.ecommerce_api.entity.User;
@@ -41,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
    private final TokenService tokenService;
    private final JwtService jwtService;
    private final EmailService emailService;
+   private final UserService userService;
 
    private final PasswordEncoder passwordEncoder;
 
@@ -197,5 +199,41 @@ public class AuthServiceImpl implements AuthService {
       userRepository.save(user);
 
       tokenService.updateTokenStatus(token, TokenStatus.USED);
+   }
+
+   private User getByEmail(String email){
+      return userRepository.findByEmail(email).orElseThrow(
+              () -> new ApiException(
+                      "USER_NOT_FOUND",
+                      HttpStatus.NOT_FOUND,
+                      Map.of("global", List.of("User not found"))
+              )
+      );
+   }
+
+   @Override
+   @Transactional
+   public void resendEmailVerification(String email){
+      User user = getByEmail(email);
+
+      if(user.getIsVerified()){
+         throw new ApiException(
+                 "USER_HAS_VERIFIED",
+                 HttpStatus.BAD_REQUEST,
+                 Map.of("global", List.of("User has verified"))
+         );
+      }
+
+      tokenRepository.invalidateOldTokens(user.getId(), TokenStatus.EXPIRED, TokenType.EMAIL_ACTIVATION);
+
+      String tokenValue = jwtService.generateEmailVerificationToken(user.getId());
+      Instant tokenExp = Instant.now().plusMillis(emailVerificationTokenExpiration);
+
+      Token token = Token.create(
+              tokenValue, user, TokenType.EMAIL_ACTIVATION, tokenExp
+      );
+      tokenRepository.save(token);
+
+      emailService.sendVerificationEmail(user.getEmail(), tokenValue);
    }
 }

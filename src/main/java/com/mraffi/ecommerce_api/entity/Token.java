@@ -13,7 +13,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tokens")
+@Table(
+        name = "tokens",
+        indexes = {
+                @Index(name = "idx_token_user_id", columnList = "user_id")
+        }
+)
 @Getter
 @NoArgsConstructor
 public class Token {
