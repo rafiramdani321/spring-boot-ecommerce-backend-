@@ -388,4 +388,56 @@ class AuthServiceTest {
       verify(userRepository, never()).save(any());
       verify(tokenRepository, never()).save(any());
    }
+
+   @Test
+   void resendEmailVerification_failed_userNotFound(){
+      when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.empty());
+
+      ApiException ex = assertThrows(ApiException.class, () -> authService.resendEmailVerification(user.getEmail()));
+
+      assertNotNull(ex.getErrors());
+      assertEquals("USER_NOT_FOUND", ex.getCode());
+      assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+      assertTrue(ex.getErrors().containsKey("global"));
+      assertTrue(ex.getErrors().get("global").contains("User not found"));
+
+      verifyNoInteractions(tokenRepository, jwtService, emailService);
+   }
+
+   @Test
+   void resendEmailVerification_failed_userHasVerified(){
+      user.verify();
+      when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+
+      ApiException ex = assertThrows(ApiException.class, () -> authService.resendEmailVerification(user.getEmail()));
+
+      assertNotNull(ex.getErrors());
+      assertEquals("USER_HAS_VERIFIED", ex.getCode());
+      assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+      assertTrue(ex.getErrors().containsKey("global"));
+      assertTrue(ex.getErrors().get("global").contains("User has verified"));
+
+      verify(tokenRepository, never()).save(any());
+      verify(emailService, never()).sendVerificationEmail(any(), any());
+   }
+
+   @Test
+   void resendEmailVerification_success(){
+      String newTokenValue = "new.valid.jwt.token";
+
+      when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+      when(jwtService.generateEmailVerificationToken(user.getId())).thenReturn(newTokenValue);
+
+      authService.resendEmailVerification(user.getEmail());
+
+      verify(tokenRepository, times(1)).invalidateOldTokens(
+              user.getId(),
+              TokenStatus.EXPIRED,
+              TokenType.EMAIL_ACTIVATION
+      );
+
+      verify(tokenRepository, times(1)).save(any(Token.class));
+
+      verify(emailService, times(1)).sendVerificationEmail(user.getEmail(), newTokenValue);
+   }
 }
