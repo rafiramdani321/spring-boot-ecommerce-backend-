@@ -70,15 +70,12 @@ class AuthControllerTestIT {
 
    @BeforeEach
    void setUp() {
-      // 1. Bersihkan database dengan urutan yang benar (Token dulu baru User karena FK)
       tokenRepository.deleteAllInBatch();
       userRepository.deleteAllInBatch();
 
-      // 2. Pastikan Role tersedia
       Role role = roleRepository.findByName(RoleName.CUSTOMER.name())
               .orElseGet(() -> roleRepository.save(Role.create(RoleName.CUSTOMER.name())));
 
-      // 3. Simpan User dan TAMPUNG kembalian dari save (Managed Entity)
       User userToSave = User.createLocalUser(
               "test_user_existing",
               "Test User",
@@ -86,15 +83,14 @@ class AuthControllerTestIT {
               "hashedPassword",
               role
       );
-      // user yang ini sekarang adalah "Managed" oleh Hibernate
+
       this.user = userRepository.saveAndFlush(userToSave);
 
-      // 4. Generate token menggunakan ID yang sudah pasti ada di DB
       String realJwtToken = jwtService.generateEmailVerificationToken(this.user.getId());
 
       token = Token.create(
               realJwtToken,
-              this.user, // Gunakan managed user
+              this.user,
               TokenType.EMAIL_ACTIVATION,
               Instant.now().plusMillis(900000L)
       );
@@ -506,6 +502,7 @@ class AuthControllerTestIT {
 
    @Test
    void resendEmailVerification_success() throws Exception {
+      tokenRepository.deleteAllInBatch();
       ResendEmailVerificationRequest request = ResendEmailVerificationRequest.builder()
               .email(user.getEmail()).build();
 
