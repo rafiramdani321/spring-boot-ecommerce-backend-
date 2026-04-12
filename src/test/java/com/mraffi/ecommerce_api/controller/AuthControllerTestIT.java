@@ -7,6 +7,7 @@ import com.mraffi.ecommerce_api.constant.TokenStatus;
 import com.mraffi.ecommerce_api.constant.TokenType;
 import com.mraffi.ecommerce_api.dto.WebResponse;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
+import com.mraffi.ecommerce_api.dto.request.auth.ResendEmailVerificationRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
 import com.mraffi.ecommerce_api.entity.Role;
 import com.mraffi.ecommerce_api.entity.Token;
@@ -68,34 +69,37 @@ class AuthControllerTestIT {
    String url = "/api/auth";
 
    @BeforeEach
-   void setUp(){
+   void setUp() {
+      // 1. Bersihkan database dengan urutan yang benar (Token dulu baru User karena FK)
       tokenRepository.deleteAllInBatch();
       userRepository.deleteAllInBatch();
 
+      // 2. Pastikan Role tersedia
       Role role = roleRepository.findByName(RoleName.CUSTOMER.name())
-              .orElseGet(() -> {
-                 Role newRole = Role.create(RoleName.CUSTOMER.name());
-                 return roleRepository.save(newRole);
-              });
+              .orElseGet(() -> roleRepository.save(Role.create(RoleName.CUSTOMER.name())));
 
-      user = User.createLocalUser(
+      // 3. Simpan User dan TAMPUNG kembalian dari save (Managed Entity)
+      User userToSave = User.createLocalUser(
               "test_user_existing",
               "Test User",
               "existing@example.com",
               "hashedPassword",
               role
       );
-      userRepository.save(user);
+      // user yang ini sekarang adalah "Managed" oleh Hibernate
+      this.user = userRepository.saveAndFlush(userToSave);
 
-      String realJwtToken = jwtService.generateEmailVerificationToken(user.getId());
+      // 4. Generate token menggunakan ID yang sudah pasti ada di DB
+      String realJwtToken = jwtService.generateEmailVerificationToken(this.user.getId());
 
       token = Token.create(
               realJwtToken,
-              user,
+              this.user, // Gunakan managed user
               TokenType.EMAIL_ACTIVATION,
               Instant.now().plusMillis(900000L)
       );
-      tokenRepository.save(token);
+
+      tokenRepository.saveAndFlush(token);
    }
 
    @Test
@@ -442,6 +446,86 @@ class AuthControllerTestIT {
                  assertNotNull(response.getErrors());
                  assertEquals("INVALID_SIGNATURE", response.getCode());
                  assertTrue(response.getErrors().get("token").contains("Invalid token signature"));
+              });
+   }
+
+   @Test
+   void resendEmailVerification_failed_userNotFound() throws Exception {
+      ResendEmailVerificationRequest request = ResendEmailVerificationRequest.builder()
+                      .email("notfound@mail.com").build();
+      mockMvc.perform(
+              post(url + "/resend-email-verification")
+                      .accept(MediaType.APPLICATION_JSON)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(objectMapper.writeValueAsString(request))
+      ).andExpect(status().isNotFound())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<User> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<User>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("Request failed", response.getMessage());
+                 assertEquals("USER_NOT_FOUND", response.getCode());
+
+                 assertTrue(response.getErrors().containsKey("global"));
+                 assertTrue(response.getErrors().get("global").contains("User not found"));
+              });
+   }
+
+   @Test
+   void resendEmailVerification_failed_userHasVerified() throws Exception {
+      user.verify();
+      ResendEmailVerificationRequest request = ResendEmailVerificationRequest.builder()
+                      .email(user.getEmail()).build();
+      userRepository.saveAndFlush(user);
+
+      mockMvc.perform(
+                      post(url + "/resend-email-verification")
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON)
+                              .content(objectMapper.writeValueAsString(request))
+              ).andExpect(status().isBadRequest())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNotNull(response.getErrors());
+                 assertEquals("Request failed", response.getMessage());
+                 assertEquals("USER_HAS_VERIFIED", response.getCode());
+
+                 assertTrue(response.getErrors().containsKey("global"));
+                 assertTrue(response.getErrors().get("global").contains("User has verified"));
+              });
+   }
+
+   @Test
+   void resendEmailVerification_success() throws Exception {
+      ResendEmailVerificationRequest request = ResendEmailVerificationRequest.builder()
+              .email(user.getEmail()).build();
+
+      mockMvc.perform(
+                      post(url + "/resend-email-verification")
+                              .accept(MediaType.APPLICATION_JSON)
+                              .contentType(MediaType.APPLICATION_JSON)
+                              .content(objectMapper.writeValueAsString(request))
+              ).andExpect(status().isCreated())
+              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+              .andDo(result -> {
+                 WebResponse<String> response = objectMapper.readValue(
+                         result.getResponse().getContentAsString(),
+                         new TypeReference<WebResponse<String>>() {}
+                 );
+
+                 assertNull(response.getErrors());
+                 assertEquals("Resend email verification success", response.getMessage());
+
+                 verify(emailService, times(1)).sendVerificationEmail(eq(request.getEmail()), anyString());
               });
    }
 }

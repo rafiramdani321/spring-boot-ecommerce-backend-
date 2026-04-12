@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,7 +59,7 @@ public class User {
    private Role role;
 
    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-   private List<Token> tokens;
+   private List<Token> tokens = new ArrayList<>();
 
    @PrePersist
    protected void prePersist(){
