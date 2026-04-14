@@ -61,6 +61,9 @@ public class User {
    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
    private List<Token> tokens = new ArrayList<>();
 
+   @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+   private List<Session> sessions = new ArrayList<>();
+
    @PrePersist
    protected void prePersist(){
       this.id = UUID.randomUUID().toString();
