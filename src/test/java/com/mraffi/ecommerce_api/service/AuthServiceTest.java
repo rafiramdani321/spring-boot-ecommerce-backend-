@@ -209,7 +209,7 @@ class AuthServiceTest {
    @Test
    void verifyEmail_success(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
-      when(jwtService.validateToken(token.getToken())).thenReturn(claims);
+      when(jwtService.validateEmailVerificationToken(token.getToken())).thenReturn(claims);
       when(claims.getSubject()).thenReturn(user.getId());
       when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
 
@@ -283,7 +283,7 @@ class AuthServiceTest {
    void verifyEmail_failed_jwtExpired(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
 
-      when(jwtService.validateToken(token.getToken()))
+      when(jwtService.validateEmailVerificationToken(token.getToken()))
               .thenThrow(ExpiredJwtException.class);
 
       ApiException ex = assertThrows(ApiException.class, () -> authService.verifyEmail(token.getToken()));
@@ -306,7 +306,7 @@ class AuthServiceTest {
    void verifyEmail_failed_jwtUnsupported(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
 
-      when(jwtService.validateToken(token.getToken()))
+      when(jwtService.validateEmailVerificationToken(token.getToken()))
               .thenThrow(UnsupportedJwtException.class);
 
       ApiException ex = assertThrows(ApiException.class, () -> authService.verifyEmail(token.getToken()));
@@ -327,7 +327,7 @@ class AuthServiceTest {
    void verifyEmail_failed_jwtMalformed(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
 
-      when(jwtService.validateToken(token.getToken()))
+      when(jwtService.validateEmailVerificationToken(token.getToken()))
               .thenThrow(MalformedJwtException.class);
 
       ApiException ex = assertThrows(ApiException.class, () -> authService.verifyEmail(token.getToken()));
@@ -348,7 +348,7 @@ class AuthServiceTest {
    void verifyEmail_failed_jwtInvalidSignature(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
 
-      when(jwtService.validateToken(token.getToken()))
+      when(jwtService.validateEmailVerificationToken(token.getToken()))
               .thenThrow(SignatureException.class);
 
       ApiException ex = assertThrows(ApiException.class, () -> authService.verifyEmail(token.getToken()));
@@ -368,7 +368,7 @@ class AuthServiceTest {
    @Test
    void verifyEmail_failed_userNotFound(){
       when(tokenRepository.findByToken(token.getToken())).thenReturn(Optional.of(token));
-      when(jwtService.validateToken(token.getToken())).thenReturn(claims);
+      when(jwtService.validateEmailVerificationToken(token.getToken())).thenReturn(claims);
 
       String userIdFromClaims = "unknown-id";
       when(claims.getSubject()).thenReturn(userIdFromClaims);

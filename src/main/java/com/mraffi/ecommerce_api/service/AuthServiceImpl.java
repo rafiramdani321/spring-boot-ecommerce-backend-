@@ -3,16 +3,23 @@ package com.mraffi.ecommerce_api.service;
 import com.mraffi.ecommerce_api.constant.RoleName;
 import com.mraffi.ecommerce_api.constant.TokenStatus;
 import com.mraffi.ecommerce_api.constant.TokenType;
+import com.mraffi.ecommerce_api.dto.request.AccessTokenRequest;
+import com.mraffi.ecommerce_api.dto.request.DeviceInfoRequest;
+import com.mraffi.ecommerce_api.dto.request.RefreshTokenRequest;
+import com.mraffi.ecommerce_api.dto.request.auth.LoginRequest;
 import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
+import com.mraffi.ecommerce_api.dto.response.auth.LoginResponse;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
-import com.mraffi.ecommerce_api.dto.response.user.UserResponse;
 import com.mraffi.ecommerce_api.entity.Role;
+import com.mraffi.ecommerce_api.entity.Session;
 import com.mraffi.ecommerce_api.entity.Token;
 import com.mraffi.ecommerce_api.entity.User;
 import com.mraffi.ecommerce_api.exception.ApiException;
 import com.mraffi.ecommerce_api.repository.RoleRepository;
+import com.mraffi.ecommerce_api.repository.SessionRepository;
 import com.mraffi.ecommerce_api.repository.TokenRepository;
 import com.mraffi.ecommerce_api.repository.UserRepository;
+import com.mraffi.ecommerce_api.util.ClientInfoUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
@@ -23,7 +30,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -38,11 +44,11 @@ public class AuthServiceImpl implements AuthService {
    private final UserRepository userRepository;
    private final RoleRepository roleRepository;
    private final TokenRepository tokenRepository;
+   private final SessionRepository sessionRepository;
 
    private final TokenService tokenService;
    private final JwtService jwtService;
    private final EmailService emailService;
-   private final UserService userService;
 
    private final PasswordEncoder passwordEncoder;
 
@@ -157,7 +163,7 @@ public class AuthServiceImpl implements AuthService {
 
       Claims claims;
       try {
-         claims = jwtService.validateToken(tokenValue);
+         claims = jwtService.validateEmailVerificationToken(tokenValue);
       } catch (ExpiredJwtException e){
          tokenService.updateTokenStatus(token, TokenStatus.EXPIRED);
          throw new ApiException(
@@ -235,5 +241,76 @@ public class AuthServiceImpl implements AuthService {
       tokenRepository.save(token);
 
       emailService.sendVerificationEmail(user.getEmail(), tokenValue);
+   }
+
+   @Override
+   @Transactional
+   public LoginResponse login(LoginRequest loginRequest, String ip, String userAgent){
+      User user = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow(
+              () -> new ApiException(
+                      "LOGIN_FAILED",
+                      HttpStatus.BAD_REQUEST,
+                      Map.of("global", List.of("Email or Password incorrect"))
+              )
+      );
+
+      boolean isValidPassword = passwordEncoder.matches(loginRequest.getPassword(), user.getPassword());
+      if(!isValidPassword){
+         throw new ApiException(
+                 "LOGIN_FAILED",
+                 HttpStatus.BAD_REQUEST,
+                 Map.of("global",  List.of("Email or Password incorrect"))
+         );
+      }
+
+      if(!user.getIsVerified()){
+         throw new ApiException(
+                 "LOGIN_FAILED",
+                 HttpStatus.BAD_REQUEST,
+                 Map.of(
+                         "global", List.of("Your email has not been activated. please check your email or you can request a new activation link."),
+                         "email", List.of(user.getEmail())
+                 )
+         );
+      }
+
+      String deviceHash = ClientInfoUtil.generateDeviceHash(
+              ip, userAgent
+      );
+
+      Session session = Session.create(
+              user,
+              userAgent,
+              ip,
+              deviceHash
+      );
+
+      sessionRepository.save(session);
+
+      AccessTokenRequest payloadAccessToken = AccessTokenRequest.builder()
+              .userId(user.getId())
+              .username(user.getUsername())
+              .email(user.getEmail())
+              .role(user.getRole().getName())
+              .tokenVersion(session.getTokenVersion())
+              .sessionId(session.getId())
+              .deviceHash(deviceHash)
+              .build();
+
+      RefreshTokenRequest payloadRefreshToken = RefreshTokenRequest.builder()
+              .userId(user.getId())
+              .role(user.getRole().getName())
+              .sessionId(session.getId())
+              .build();
+
+      String accessToken = jwtService.generateAccessToken(payloadAccessToken);
+      String refreshToken = jwtService.generateRefreshToken(payloadRefreshToken);
+
+      return LoginResponse.builder()
+              .username(user.getUsername())
+              .email(user.getEmail())
+              .accessToken(accessToken)
+              .refreshToken(refreshToken)
+              .build();
    }
 }

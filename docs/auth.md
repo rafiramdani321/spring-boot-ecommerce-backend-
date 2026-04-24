@@ -168,3 +168,54 @@ Response Body :
   }
 }
 ```
+
+## Login
+
+### Behavior
+
+- Request body (email, password) mandatory.
+- System will check whether email is registered.
+- System will check password.
+- System will check is verified.
+- Create session.
+- Generate JWT access token and refresh token.
+- set cookies.
+
+Endpoint : GET /api/auth/login
+
+Request Body :
+
+```json
+{
+  "username": "example@mail.com",
+  "password": "123123"
+}
+```
+
+Response Body :
+
+- Success, 200 - OK
+```json
+{
+  "data": {
+    "username": "testuser",
+    "email": "example@mail.com",
+    "accessToken": "accestokensecret",
+    "refreshToken": "refreshtokensecret"
+  },
+  "message": "Resend email verification success"
+}
+```
+
+- Failed (Email or Password incorrect), 400 Bad Request
+```json
+{
+  "message": "Request failed",
+  "code": "LOGIN_FAILED",
+  "errors": {
+    "global": [
+      "Email or Password incorrect"
+    ]
+  }
+}
+```

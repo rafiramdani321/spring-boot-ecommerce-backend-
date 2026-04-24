@@ -34,9 +34,6 @@ public class Session {
    @OnDelete(action = OnDeleteAction.CASCADE)
    private User user;
 
-   @Column(name = "refresh_token", unique = true)
-   private String refreshToken;
-
    @Column(name = "device_hash", nullable = false)
    private String deviceHash;
 
@@ -69,5 +66,15 @@ public class Session {
    @PreUpdate
    protected void preUpdate(){
       this.updatedAt = Instant.now();
+   }
+
+   public static Session create(User user, String userAgent, String ipAddress, String deviceHash){
+      Session createSession = new Session();
+      createSession.user = user;
+      createSession.userAgent = userAgent;
+      createSession.ipAddress = ipAddress;
+      createSession.deviceHash = deviceHash;
+
+      return createSession;
    }
 }
