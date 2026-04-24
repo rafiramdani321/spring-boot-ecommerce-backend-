@@ -125,3 +125,46 @@ Response Body :
 }
 ```
 
+## Resend Verify Email Activation
+
+### Behavior
+
+- Request body email mandatory.
+- System will check whether email is registered.
+- System will check whether is verified is true.
+- Change all old tokens to expired. 
+- set and create token expired (15 minute)
+- if checking success. send verification email.
+
+Endpoint : GET /api/auth/resend-email-verification
+
+Request Body :
+
+```json
+{
+  "email": "example@mail.com"
+}
+```
+
+Response Body :
+
+- Success, 201 - CREATED
+```json
+{
+  "data": "success",
+  "message": "Resend email verification success"
+}
+```
+
+- Failed (Email not found), 404 Not Found
+```json
+{
+  "message": "Request failed",
+  "code": "USER_NOT_FOUND",
+  "errors": {
+    "global": [
+      "User not found"
+    ]
+  }
+}
+```
