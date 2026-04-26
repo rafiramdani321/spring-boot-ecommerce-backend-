@@ -278,12 +278,15 @@ public class AuthServiceImpl implements AuthService {
               ip, userAgent
       );
 
-      Session session = Session.create(
-              user,
-              userAgent,
-              ip,
-              deviceHash
-      );
+      Session session = sessionRepository.findByUserIdAndDeviceHash(user.getId(), deviceHash)
+              .map(existingSession -> {
+                 existingSession.setIpAddress(ip);
+                 existingSession.setUserAgent(userAgent);
+                 existingSession.incrementTokenVersion();
+
+                 return existingSession;
+              })
+              .orElseGet(() -> Session.create(user, userAgent, ip, deviceHash));
 
       sessionRepository.save(session);
 
