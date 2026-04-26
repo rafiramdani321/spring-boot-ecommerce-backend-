@@ -7,6 +7,7 @@ import com.mraffi.ecommerce_api.dto.request.auth.RegisterRequest;
 import com.mraffi.ecommerce_api.dto.request.auth.ResendEmailVerificationRequest;
 import com.mraffi.ecommerce_api.dto.response.auth.LoginResponse;
 import com.mraffi.ecommerce_api.dto.response.auth.RegisterResponse;
+import com.mraffi.ecommerce_api.exception.ApiException;
 import com.mraffi.ecommerce_api.service.AuthService;
 import com.mraffi.ecommerce_api.service.JwtService;
 import com.mraffi.ecommerce_api.util.ClientInfoUtil;
@@ -20,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -96,6 +98,26 @@ public class AuthController {
       return WebResponse.<LoginResponse>builder()
               .data(loginResponse)
               .message("Login success")
+              .build();
+   }
+
+   @PostMapping(
+           path = "/refresh-token",
+           produces = MediaType.APPLICATION_JSON_VALUE
+   )
+   public WebResponse<LoginResponse> refreshToken(@CookieValue(name = "refreshToken", required = false) String refreshToken){
+      if(refreshToken == null){
+         throw new ApiException(
+                 "UNAUTHORIZED",
+                 HttpStatus.UNAUTHORIZED,
+                 Map.of("global", List.of("Unauthorized"))
+         );
+      }
+
+      LoginResponse response = authService.refreshToken(refreshToken);
+      return WebResponse.<LoginResponse>builder()
+              .data(response)
+              .message("Get refresh token success")
               .build();
    }
 

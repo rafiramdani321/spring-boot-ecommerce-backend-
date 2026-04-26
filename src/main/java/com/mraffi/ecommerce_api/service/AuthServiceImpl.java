@@ -316,4 +316,48 @@ public class AuthServiceImpl implements AuthService {
               .refreshToken(refreshToken)
               .build();
    }
+
+   @Override
+   @Transactional
+   public LoginResponse refreshToken(String refreshToken){
+      Claims claims = jwtService.validateRefreshToken(refreshToken);
+
+      String sessionId = claims.get("sessionId", String.class);
+      String userId = claims.getSubject();
+
+      User user = userRepository.findById(userId).orElseThrow(() -> new ApiException(
+              "USER_NOT_FOUND",
+              HttpStatus.NOT_FOUND,
+              Map.of("global", List.of("User not found"))
+      ));
+
+      Session session = sessionRepository.findById(sessionId)
+              .filter(s -> s.getUser().getId().equals(user.getId()))
+              .orElseThrow(() -> new ApiException(
+                      "UNAUTHORIZED",
+                      HttpStatus.UNAUTHORIZED,
+                      Map.of("global", List.of("Unauthorized"))
+              ));
+
+      session.incrementTokenVersion();
+      sessionRepository.save(session);
+
+      AccessTokenRequest payloadAccessToken = AccessTokenRequest.builder()
+              .userId(user.getId())
+              .username(user.getUsername())
+              .email(user.getEmail())
+              .role(user.getRole().getName())
+              .tokenVersion(session.getTokenVersion())
+              .sessionId(session.getId())
+              .deviceHash(session.getDeviceHash())
+              .build();
+
+      String newAccessToken = jwtService.generateAccessToken(payloadAccessToken);
+
+      return LoginResponse.builder()
+              .username(payloadAccessToken.getUsername())
+              .email(payloadAccessToken.getEmail())
+              .accessToken(newAccessToken)
+              .build();
+   }
 }
