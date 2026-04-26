@@ -3,6 +3,7 @@ package com.mraffi.ecommerce_api.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -38,9 +39,11 @@ public class Session {
    private String deviceHash;
 
    @Column(name = "user_agent")
+   @Setter
    private String userAgent;
 
    @Column(name = "ip_address")
+   @Setter
    private String ipAddress;
 
    @Column(name = "token_version", nullable = false)
@@ -76,5 +79,9 @@ public class Session {
       createSession.deviceHash = deviceHash;
 
       return createSession;
+   }
+
+   public void incrementTokenVersion(){
+      this.tokenVersion++;
    }
 }
