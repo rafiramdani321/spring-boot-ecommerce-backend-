@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +28,9 @@ public class Role {
 
    @OneToMany(mappedBy = "role")
    private List<User> users;
+
+   @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
+   private List<RolePermission> rolePermissions = new ArrayList<>();
 
    @PrePersist
    public void prePersist(){
